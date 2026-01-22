@@ -1,3 +1,9 @@
+# 外部からのAPIへのアクセスを許可
+# Header set Access-Control-Allow-Origin: "*"
+
+Options -Indexes
+IndexIgnore *
+
 RewriteEngine On
 # リクエストされたファイルが実際に存在する場合は除外
 RewriteCond %{REQUEST_FILENAME} !-f

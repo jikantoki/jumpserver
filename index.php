@@ -1,5 +1,25 @@
 <?php
 
+// --- CORSを許可するヘッダーを追加 ---
+
+// 方法A: 全てのオリジンからのアクセスを許可する (開発中は便利だが、本番では非推奨)
+header("Access-Control-Allow-Origin: *", true);
+
+// 方法B: 特定のオリジンのみ許可する (推奨)
+// header("Access-Control-Allow-Origin: https://www.your-other-website.com");
+
+// その他の必要なCORSヘッダー（POSTやカスタムヘッダーを使う場合）
+header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Cookie");
+header("Access-Control-Allow-Headers: Content-Type, id, password");
+//header("Access-Control-Allow-Credentials: true"); // クッキーを転送する場合に必須
+
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    // OPTIONSリクエストの場合は、ヘッダーだけ返して終了する
+    http_response_code(204);
+    exit();
+}
+
 /** ファイルパス */
 $uri = $_SERVER['REQUEST_URI'];
 // 転送先のURLを設定します
@@ -8,6 +28,11 @@ $targetUrl = "{$targetDomain}{$uri}"; // ここを実際の転送先に変更し
 
 // --- cURLを使用してリクエストを転送 ---
 $ch = curl_init($targetUrl);
+
+// SSL証明書の検証を無効にする (開発・検証目的のみ)
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
 
 // 1. HTTPメソッドを元のリクエストと同じに設定
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
@@ -75,6 +100,12 @@ if ($err) {
     $headerLines = explode("\n", $responseHeaders);
     foreach ($headerLines as $headerLine) {
         $headerLine = trim($headerLine);
+        // --- ここが重要な修正箇所です ---
+        // 転送先サーバーが返してきた Access-Control-Allow-Origin ヘッダーを無視する
+        if (stripos($headerLine, 'access-control-allow-origin:') === 0) {
+            header("Access-Control-Allow-Origin: *", true);
+            continue; // このヘッダーはスキップして次へ
+        }
         if (!empty($headerLine)) {
             // Content-Lengthも含め、返ってきたヘッダーを全てそのまま出力
             header($headerLine, false); // falseで同じヘッダー名の上書きを防ぐ
