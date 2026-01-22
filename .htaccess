@@ -1,0 +1,7 @@
+RewriteEngine On
+# リクエストされたファイルが実際に存在する場合は除外
+RewriteCond %{REQUEST_FILENAME} !-f
+# リクエストされたディレクトリが実際に存在する場合は除外
+RewriteCond %{REQUEST_FILENAME} !-d
+# それ以外の場合、全てのリクエストを index.php に内部的に書き換える
+RewriteRule ^(.*)$ index.php [L,QSA]
