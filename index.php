@@ -83,11 +83,6 @@ if ($err) {
 
     // 7. 返ってきたボディをそのままクライアントに出力（画像/動画/JSONなど）
     echo $responseBody;
-    if($httpcode != 200) {
-      echo $targetUrl;
-      echo "\n";
-      echo $httpcode;
-    }
 }
 
 curl_close($ch);
