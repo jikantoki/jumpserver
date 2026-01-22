@@ -3,7 +3,7 @@
 /** ファイルパス */
 $uri = $_SERVER['REQUEST_URI'];
 // 転送先のURLを設定します
-include './__target.php';
+include './__target.php'; // $targetDomain が含まれている想定
 $targetUrl = "{$targetDomain}{$uri}"; // ここを実際の転送先に変更してください
 
 // --- cURLを使用してリクエストを転送 ---
@@ -18,11 +18,12 @@ $rawPostData = file_get_contents('php://input');
 curl_setopt($ch, CURLOPT_POSTFIELDS, $rawPostData);
 
 // 3. 元のヘッダーをほぼそのまま転送
-// 'Host'や一部のシステム依存ヘッダーは除外します
+// 'Host'は除外し、Content-LengthはPHPが自動付与するので除外（今回は後でそのまま転送するためOK）
 $headers = getallheaders();
 $forwardedHeaders = [];
 foreach ($headers as $key => $value) {
-    if (strtolower($key) !== 'host' && strtolower($key) !== 'content-length') {
+    // Hostヘッダーは除外する
+    if (strtolower($key) !== 'host') {
         $forwardedHeaders[] = "$key: $value";
     }
 }
@@ -30,7 +31,6 @@ foreach ($headers as $key => $value) {
 // *** ここからがクッキー転送のための重要な追加設定です ***
 
 // ブラウザから受け取ったCookieヘッダーをそのままcURLに設定
-// getallheaders()がCookieヘッダーを含まない場合は $_SERVER['HTTP_COOKIE'] を使用
 $cookieHeader = '';
 if (isset($headers['Cookie'])) {
     $cookieHeader = $headers['Cookie'];
@@ -39,12 +39,12 @@ if (isset($headers['Cookie'])) {
 }
 
 if (!empty($cookieHeader)) {
-    // CURLOPT_COOKIEは、Cookie: ヘッダー全体を設定するのに最適
     curl_setopt($ch, CURLOPT_COOKIE, $cookieHeader);
 }
 
-// Content-Typeヘッダーが抜けないように再度設定
+// Content-Typeヘッダー（POST時など）を確実に転送リストに含める
 if (isset($headers['Content-Type'])) {
+    // 既存の forwardedHeaders に追加されるため重複しない
     $forwardedHeaders[] = 'Content-Type: ' . $headers['Content-Type'];
 }
 
@@ -60,7 +60,6 @@ $err = curl_error($ch);
 $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
 if ($err) {
-    // エラーハンドリング
     http_response_code(500);
     echo "cURL Error: " . $err;
 } else {
@@ -70,16 +69,14 @@ if ($err) {
     $responseBody = substr($response, $headerSize);
 
     // 5. 返ってきたHTTPステータスコードをクライアントに設定
-    // Note: header() 関数を呼ぶ前にステータスコードを設定します
     http_response_code($httpcode);
 
-    // 6. 返ってきたヘッダー（特に Content-Type）をクライアントに転送
-    // ヘッダー行ごとに処理して出力
+    // 6. 返ってきたヘッダー（Content-TypeやSet-Cookie、Content-Length含む）をクライアントに転送
     $headerLines = explode("\n", $responseHeaders);
     foreach ($headerLines as $headerLine) {
-        // 余分な空白をトリムし、不要な行を除外
         $headerLine = trim($headerLine);
-        if (!empty($headerLine) && strpos($headerLine, 'Content-Length') === false) {
+        if (!empty($headerLine)) {
+            // Content-Lengthも含め、返ってきたヘッダーを全てそのまま出力
             header($headerLine, false); // falseで同じヘッダー名の上書きを防ぐ
         }
     }
