@@ -10,8 +10,8 @@ header("Access-Control-Allow-Origin: *", true);
 
 // その他の必要なCORSヘッダー（POSTやカスタムヘッダーを使う場合）
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Cookie");
-header("Access-Control-Allow-Headers: Content-Type, id, password");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Cookie, id, password");
+
 //header("Access-Control-Allow-Credentials: true"); // クッキーを転送する場合に必須
 
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
@@ -40,7 +40,9 @@ curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
 // 2. POSTデータ（RAWボディ）をそのまま転送
 // GETリクエストの場合は空になります
 $rawPostData = file_get_contents('php://input');
-curl_setopt($ch, CURLOPT_POSTFIELDS, $rawPostData);
+if (!empty($rawPostData)) {
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $rawPostData);
+}
 
 // 3. 元のヘッダーをほぼそのまま転送
 // 'Host'は除外し、Content-LengthはPHPが自動付与するので除外（今回は後でそのまま転送するためOK）
@@ -86,6 +88,9 @@ $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
 if ($err) {
     http_response_code(500);
+    echo 'サーバーエラー。ごめんちょ。<br>';
+    echo $targetUrl;
+    echo '<br>';
     echo "cURL Error: " . $err;
 } else {
     // レスポンスをヘッダーとボディに分割
@@ -100,21 +105,16 @@ if ($err) {
     $headerLines = explode("\n", $responseHeaders);
     foreach ($headerLines as $headerLine) {
         $headerLine = trim($headerLine);
-        // --- ここが重要な修正箇所です ---
-        // 転送先サーバーが返してきた Access-Control-Allow-Origin ヘッダーを無視する
-        if (stripos($headerLine, 'access-control-allow-origin:') === 0) {
-            header("Access-Control-Allow-Origin: *", true);
-            continue; // このヘッダーはスキップして次へ
+        // 除外すべきヘッダー（プロキシが再生成・処理すべきもの）
+        if (preg_match('/^(access-control-allow-origin|content-length|transfer-encoding):/i', $headerLine)) {
+            continue;
         }
-        if (!empty($headerLine)) {
-            // Content-Lengthも含め、返ってきたヘッダーを全てそのまま出力
-            header($headerLine, false); // falseで同じヘッダー名の上書きを防ぐ
-        }
+        header($headerLine, true);
     }
+    header("Access-Control-Allow-Origin: *", true);
 
     // 7. 返ってきたボディをそのままクライアントに出力（画像/動画/JSONなど）
     echo $responseBody;
 }
 
 curl_close($ch);
-?>
