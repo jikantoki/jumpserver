@@ -107,17 +107,13 @@ if ($err) {
     foreach ($headerLines as $headerLine) {
         $headerLine = trim($headerLine);
         // 除外すべきヘッダー（プロキシが再生成・処理すべきもの）
-        // 206 Partial Content の場合は Content-Length を転送する必要があるため除外しない
-        if ($httpcode == 206) {
-            // 206の場合は Content-Range, Accept-Ranges, Content-Length を転送
-            if (preg_match('/^(access-control-allow-origin|transfer-encoding):/i', $headerLine)) {
-                continue;
-            }
-        } else {
-            // 通常のレスポンスの場合
-            if (preg_match('/^(access-control-allow-origin|content-length|transfer-encoding):/i', $headerLine)) {
-                continue;
-            }
+        // 206 Partial Content の場合は Content-Length, Content-Range, Accept-Ranges を除外せずに転送
+        $excludePattern = ($httpcode == 206)
+            ? '/^(access-control-allow-origin|transfer-encoding):/i'
+            : '/^(access-control-allow-origin|content-length|transfer-encoding):/i';
+        
+        if (preg_match($excludePattern, $headerLine)) {
+            continue;
         }
         header($headerLine, true);
     }
