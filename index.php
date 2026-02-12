@@ -10,7 +10,8 @@ header("Access-Control-Allow-Origin: *", true);
 
 // その他の必要なCORSヘッダー（POSTやカスタムヘッダーを使う場合）
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Cookie, id, password");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Cookie, id, password, Range");
+header("Access-Control-Expose-Headers: Content-Range, Accept-Ranges, Content-Length");
 
 //header("Access-Control-Allow-Credentials: true"); // クッキーを転送する場合に必須
 
@@ -106,7 +107,12 @@ if ($err) {
     foreach ($headerLines as $headerLine) {
         $headerLine = trim($headerLine);
         // 除外すべきヘッダー（プロキシが再生成・処理すべきもの）
-        if (preg_match('/^(access-control-allow-origin|content-length|transfer-encoding):/i', $headerLine)) {
+        // 206 Partial Content の場合は Content-Length, Content-Range, Accept-Ranges を除外せずに転送
+        $excludePattern = ($httpcode == 206)
+            ? '/^(access-control-allow-origin|transfer-encoding):/i'
+            : '/^(access-control-allow-origin|content-length|transfer-encoding):/i';
+        
+        if (preg_match($excludePattern, $headerLine)) {
             continue;
         }
         header($headerLine, true);
